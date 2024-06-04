@@ -77,14 +77,6 @@ func HandleRequestAndRedirect(proxy1, proxy2 *httputil.ReverseProxy) http.Handle
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 
-		req1 := r.Clone(context.Background())
-		req2 := r.Clone(context.Background())
-
-		defer func(req1, req2 *http.Request) {
-			req1.Body.Close()
-			req2.Body.Close()
-		}(req1, req2)
-
 		// Create a copy of the request body for the second proxy
 		bodyBytes, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -92,6 +84,9 @@ func HandleRequestAndRedirect(proxy1, proxy2 *httputil.ReverseProxy) http.Handle
 			http.Error(w, "Failed to read request body", http.StatusInternalServerError)
 			return
 		}
+
+		req1 := r.Clone(context.Background())
+		req2 := r.Clone(context.Background())
 
 		req1.Body = io.NopCloser(bytes.NewBuffer(bodyBytes)) // Copy of request body for the first proxy
 		req2.Body = io.NopCloser(bytes.NewBuffer(bodyBytes)) // Copy of request body for the second proxy
