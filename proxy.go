@@ -2,13 +2,16 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
+	"sync"
 )
 
 // NewProxy creates a new reverse proxy to the target host
@@ -20,18 +23,32 @@ func NewProxy(targetHost string) *httputil.ReverseProxy {
 
 // CompareResponses compares the responses from two servers
 func CompareResponses(resp1, resp2 *http.Response) error {
-	// Read the body of the first response
-	body1, err := io.ReadAll(resp1.Body)
-	if err != nil {
-		logger.Printf("Error reading body from first response: %v", err)
-		return errors.New("reading body from first error")
-	}
-	// Read the body of the second response
-	body2, err := io.ReadAll(resp2.Body)
-	if err != nil {
-		logger.Printf("Error reading body from second response: %v", err)
-		return errors.New("reading body from second error")
-	}
+	var wg sync.WaitGroup
+	wg.Add(2)
+	var body1, body2 []byte
+	var err error
+	// Forward the request to the first proxy
+	go func() {
+		defer wg.Done()
+		// Read the body of the first response
+		body1, err = io.ReadAll(resp1.Body)
+		if err != nil {
+			logger.Printf("Error reading body from first response: %v", err)
+			//return errors.New("reading body from first error")
+		}
+	}()
+
+	// Forward the request to the second proxy
+	go func() {
+		defer wg.Done()
+		// Read the body of the second response
+		body2, err = io.ReadAll(resp2.Body)
+		if err != nil {
+			logger.Printf("Error reading body from second response: %v", err)
+		}
+	}()
+
+	wg.Wait() // Wait for both goroutines to finish
 
 	// Compare status code if configured
 	if config.CompareStatusCode && !isStatusEquivalent(resp1.StatusCode, resp2.StatusCode) {
@@ -58,30 +75,56 @@ func CompareResponses(resp1, resp2 *http.Response) error {
 // HandleRequestAndRedirect handles incoming requests and redirects them to two target hosts
 func HandleRequestAndRedirect(proxy1, proxy2 *httputil.ReverseProxy) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+
+		req1 := r.Clone(context.Background())
+		req2 := r.Clone(context.Background())
+
+		defer func(req1, req2 *http.Request) {
+			req1.Body.Close()
+			req2.Body.Close()
+		}(req1, req2)
+
 		// Create a copy of the request body for the second proxy
 		bodyBytes, err := io.ReadAll(r.Body)
 		if err != nil {
-			logger.Printf("Failed to read request body")
+			log.Printf("Failed to read request body: %v", err)
 			http.Error(w, "Failed to read request body", http.StatusInternalServerError)
 			return
 		}
-		r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-		reqBodyCopy := io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+		req1.Body = io.NopCloser(bytes.NewBuffer(bodyBytes)) // Copy of request body for the first proxy
+		req2.Body = io.NopCloser(bytes.NewBuffer(bodyBytes)) // Copy of request body for the second proxy
+
+		// Create response recorders
+		rec1 := httptest.NewRecorder()
+		rec2 := httptest.NewRecorder()
+
+		// Forward the request to the two proxies concurrently using goroutines
+		var wg sync.WaitGroup
+		wg.Add(2)
 
 		// Forward the request to the first proxy
-		rec1 := httptest.NewRecorder()
-		r.Body = reqBodyCopy
-		proxy1.ServeHTTP(rec1, r)
+		go func() {
+			defer wg.Done()
+			proxy1.ServeHTTP(rec1, req1)
+		}()
 
 		// Forward the request to the second proxy
-		rec2 := httptest.NewRecorder()
-		r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes)) // Reset the body for the second request
-		proxy2.ServeHTTP(rec2, r)
+		go func() {
+			defer wg.Done()
+			proxy2.ServeHTTP(rec2, req2)
+		}()
 
-		// Compare the responses
+		wg.Wait() // Wait for both goroutines to finish
+
+		//Compare the responses
 		err = CompareResponses(rec1.Result(), rec2.Result())
 		if err != nil {
 			logger.Printf("[diff] Request: %s\n, error: %v", r.URL.RequestURI(), err)
 		}
+
+		w.WriteHeader(rec1.Result().StatusCode)
+		_, _ = w.Write(rec1.Body.Bytes())
 	}
 }
