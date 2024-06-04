@@ -6,6 +6,7 @@
     "Content-Length"
   ],
   "compare_status_code": true,
+  "compare_body": false,
   "equivalent_status_codes": [
 
   ]
