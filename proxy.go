@@ -131,7 +131,7 @@ func HandleRequestAndRedirect(proxy1, proxy2 *httputil.ReverseProxy) http.Handle
 		//Compare the responses
 		err = CompareResponses(rec1.Result(), rec2.Result())
 		if err != nil {
-			logger.Printf("[diff] Request: %s\n, error: %v", r.URL.RequestURI(), err)
+			logger.Printf("[diff] Request: %s\n, Header: %v, \n error: %v", r.URL.RequestURI(), r.Header, err)
 		}
 
 		w.WriteHeader(rec1.Result().StatusCode)
