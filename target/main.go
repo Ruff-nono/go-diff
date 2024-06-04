@@ -5,10 +5,21 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"sync/atomic"
+	"time"
 )
+
+var ConcurrentReq int64
 
 // handler for the GET request
 func handleRequest(w http.ResponseWriter, r *http.Request) {
+	atomic.AddInt64(&ConcurrentReq, 1)
+	defer atomic.AddInt64(&ConcurrentReq, -1)
+	start := time.Now()
+	time.Sleep(10 * time.Millisecond)
+	defer func() {
+		log.Printf("ConcurrentReq: %d, cost: %v", ConcurrentReq, time.Since(start))
+	}()
 	// Extract query parameters
 	statusParam := r.URL.Query().Get("index")
 
