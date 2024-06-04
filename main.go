@@ -28,7 +28,6 @@ func main() {
 
 	proxy1 := NewProxy(config.Host1)
 	proxy2 := NewProxy(config.Host2)
-
 	http.HandleFunc("/", HandleRequestAndRedirect(proxy1, proxy2))
 	logger.Printf("Starting proxy server, forwarding requests to: %s and %s\n", config.Host1, config.Host2)
 	err := http.ListenAndServe(":8080", nil)

@@ -13,12 +13,16 @@ var ConcurrentReq int64
 
 // handler for the GET request
 func handleRequest(w http.ResponseWriter, r *http.Request) {
+	if num := atomic.LoadInt64(&ConcurrentReq); num > 50 {
+		log.Printf("Over ConcurrentReq: %d", num)
+		return
+	}
 	atomic.AddInt64(&ConcurrentReq, 1)
 	defer atomic.AddInt64(&ConcurrentReq, -1)
 	start := time.Now()
 	time.Sleep(10 * time.Millisecond)
 	defer func() {
-		log.Printf("ConcurrentReq: %d, cost: %v", ConcurrentReq, time.Since(start))
+		log.Printf("ConcurrentReq: %d, cost: %v", atomic.LoadInt64(&ConcurrentReq), time.Since(start))
 	}()
 	// Extract query parameters
 	statusParam := r.URL.Query().Get("index")
@@ -64,4 +68,5 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
+
 }
