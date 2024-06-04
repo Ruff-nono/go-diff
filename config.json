@@ -1,0 +1,12 @@
+{
+  "host1": "",
+  "host2": "",
+  "headers_to_compare": [
+    "Content-Type",
+    "Content-Length"
+  ],
+  "compare_status_code": true,
+  "equivalent_status_codes": [
+
+  ]
+}
