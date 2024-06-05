@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/wI2L/jsondiff"
 	"io"
 	"log"
 	"net"
@@ -67,8 +68,7 @@ func CompareResponses(resp1, resp2 *http.Response) error {
 
 	// Compare status code if configured
 	if config.CompareStatusCode && !isStatusEquivalent(resp1.StatusCode, resp2.StatusCode) {
-		body := fmt.Sprintf("Response bodies.\nFirst response: %s\nSecond response: %s", string(body1), string(body2))
-		return errors.New(fmt.Sprintf("Status codes are different. First: %d, Second: %d, %s", resp1.StatusCode, resp2.StatusCode, body))
+		return errors.New(fmt.Sprintf("Status codes are different. First: %d, Second: %d", resp1.StatusCode, resp2.StatusCode))
 	}
 
 	// Compare headers
@@ -82,8 +82,18 @@ func CompareResponses(resp1, resp2 *http.Response) error {
 
 	// Compare the bodies
 	if config.CompareBody && !bytes.Equal(body1, body2) {
-		return errors.New(fmt.Sprintf("Response bodies are different.\nFirst response: %s\nSecond response: %s", string(body1), string(body2)))
+		patch, err := jsondiff.CompareJSON(body1, body2)
+		if err != nil {
+			logger.Println(err)
+		}
+		for _, op := range patch {
+			logger.Printf("%s", op)
+		}
+		if len(patch) > 0 {
+			return errors.New(fmt.Sprintf("Response bodies are different.\nFirst response: %s\nSecond response: %s", string(body1), string(body2)))
+		}
 	}
+
 	return nil
 }
 
