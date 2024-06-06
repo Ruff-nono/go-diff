@@ -72,7 +72,7 @@ func CompareResponses(resp1, resp2 *http.Response) error {
 	}
 
 	// Compare headers
-	for _, key := range config.HeadersToCompare {
+	for _, key := range config.HeadersInclude {
 		val1, ok1 := resp1.Header[key]
 		val2, ok2 := resp2.Header[key]
 		if ok1 != ok2 || !stringSliceEqual(val1, val2) {
@@ -82,12 +82,15 @@ func CompareResponses(resp1, resp2 *http.Response) error {
 
 	// Compare the bodies
 	if config.CompareBody && !bytes.Equal(body1, body2) {
-		patch, err := jsondiff.CompareJSON(body1, body2)
+		patch, err := jsondiff.CompareJSON(body1, body2, jsondiff.Equivalent())
 		if err != nil {
-			logger.Println(err)
+			logger.Printf("body1: %s, body2: %s, err: %v", string(body1), string(body2), err)
 		}
+
 		for _, op := range patch {
-			logger.Printf("%s", op)
+			if contains(config.BodiesExclude, op.Path) {
+				continue
+			}
 		}
 		if len(patch) > 0 {
 			return errors.New(fmt.Sprintf("Response bodies are different.\nFirst response: %s\nSecond response: %s", string(body1), string(body2)))

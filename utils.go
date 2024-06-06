@@ -10,8 +10,8 @@ func isStatusEquivalent(code1, code2 int) bool {
 	return code1 == code2
 }
 
-// Check if an int slice contains a specific integer
-func contains(slice []int, value int) bool {
+// Check if an slice contains a specific value
+func contains[T comparable](slice []T, value T) bool {
 	for _, item := range slice {
 		if item == value {
 			return true

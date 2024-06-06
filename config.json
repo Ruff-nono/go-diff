@@ -1,13 +1,20 @@
 {
-  "host1": "",
-  "host2": "",
-  "headers_to_compare": [
+  "host1": "http://localhost:8081",
+  "host2": "http://localhost:8081",
+  "headers_include": [
     "Content-Type",
     "Content-Length"
   ],
   "compare_status_code": true,
-  "compare_body": false,
   "equivalent_status_codes": [
-
+    [
+      400,
+      401
+    ]
+  ],
+  "compare_body": false,
+  "bodies_exclude": [
+    "/secret",
+    "/uniqueId"
   ]
 }
