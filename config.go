@@ -12,10 +12,11 @@ var config Config
 type Config struct {
 	Host1                 string   `json:"host1"`
 	Host2                 string   `json:"host2"`
-	HeadersToCompare      []string `json:"headers_to_compare"`
+	HeadersInclude        []string `json:"headers_include"`
 	CompareStatusCode     bool     `json:"compare_status_code"`
-	CompareBody           bool     `json:"compare_body"`
 	EquivalentStatusCodes [][]int  `json:"equivalent_status_codes"`
+	CompareBody           bool     `json:"compare_body"`
+	BodiesExclude         []string `json:"bodies_exclude"`
 }
 
 func init() {
