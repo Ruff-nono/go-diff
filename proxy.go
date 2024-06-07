@@ -88,12 +88,9 @@ func CompareResponses(resp1, resp2 *http.Response) error {
 		}
 
 		for _, op := range patch {
-			if contains(config.BodiesExclude, op.Path) {
-				continue
+			if !contains(config.BodiesExclude, op.Path) {
+				return errors.New(fmt.Sprintf("Response bodies are different.\nFirst response: %s\nSecond response: %s", string(body1), string(body2)))
 			}
-		}
-		if len(patch) > 0 {
-			return errors.New(fmt.Sprintf("Response bodies are different.\nFirst response: %s\nSecond response: %s", string(body1), string(body2)))
 		}
 	}
 
