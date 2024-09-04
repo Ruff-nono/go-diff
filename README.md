@@ -55,3 +55,5 @@ json body的字段填写规则
 /a/b/c/z
 
 更多详细规则，详见引用[json diff](https://github.com/wI2L/jsondiff)
+
+配合[`go replay`](https://github.com/buger/goreplay)工具食用更佳
