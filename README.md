@@ -19,6 +19,16 @@ go build .
 ```
 2、go-diff 默认端口为18080，将请求流量转发至go-diff，go-diff则会将请求同时转发到配置文件中的host1和host2，并对比响应体输出到日志`diff.log`
 
+```
+time: 2024/06/17 10:30:07 start at 2024-06-17 10:30:07
+time: 2024/06/17 10:30:07 Starting proxy server, forwarding requests to: http://localhost:8080 and http://localhost:8081
+time: 2024/06/17 10:36:44 [diff] Request: /api/register
+error: Status codes are different. First: 401, Second: 400
+time: 2024/06/17 10:36:50 [diff] Request: /api/register
+error: Response bodies are different.
+First response: {"code":"C101","msg":"鉴权数据错误 decode code error:invalid timestamp"}
+Second response: {"code":"C001","msg":"decrypt code failed"}
+```
 # 配置文件
 默认为同路径下的`config.json`
 ```json
