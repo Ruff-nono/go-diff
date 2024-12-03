@@ -84,7 +84,7 @@ func CompareResponses(resp1, resp2 *http.Response) error {
 	if config.CompareBody && !bytes.Equal(body1, body2) {
 		patch, err := jsondiff.CompareJSON(body1, body2, jsondiff.Equivalent())
 		if err != nil {
-			logger.Printf("body1: %s, body2: %s, err: %v", string(body1), string(body2), err)
+			return fmt.Errorf("body1: %s, body2: %s, err: %v", string(body1), string(body2), err)
 		}
 
 		for _, op := range patch {
@@ -141,7 +141,8 @@ func HandleRequestAndRedirect(proxy1, proxy2 *httputil.ReverseProxy) http.Handle
 		//Compare the responses
 		err = CompareResponses(rec1.Result(), rec2.Result())
 		if err != nil {
-			logger.Printf("[diff] Request: %s\n, Header: %v, \n error: %v", r.URL.RequestURI(), r.Header, err)
+			logger.Printf("[diff] Request: %s\n, Header: %v \nBody: %v \nerror: %v",
+				r.URL.RequestURI(), r.Header, string(bodyBytes), err)
 		}
 
 		w.WriteHeader(rec1.Result().StatusCode)
