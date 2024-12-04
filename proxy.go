@@ -92,7 +92,7 @@ func CompareResponses(resp1, resp2 *http.Response) error {
 	if config.CompareBody && !bytes.Equal(body1, body2) {
 		patch, err := jsondiff.CompareJSON(body1, body2, jsondiff.Equivalent())
 		if err != nil {
-			return fmt.Errorf("body1: %s, body2: %s, err: %v", string(body1), string(body2), err)
+			diffDetail.HeaderDifferences["error"] = DifferenceExample{}
 		}
 
 		for _, op := range patch {
