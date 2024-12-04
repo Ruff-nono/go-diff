@@ -3,11 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
-	"errors"
-	"fmt"
 	"github.com/wI2L/jsondiff"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -66,9 +63,18 @@ func CompareResponses(resp1, resp2 *http.Response) error {
 
 	wg.Wait() // Wait for both goroutines to finish
 
+	stats := statsGroup.NewRouteStats("/example/route")
+	diffDetail := DifferenceDetails{
+		HeaderDifferences: make(map[string]DifferenceExample),
+		StatusDifferences: make(map[string]DifferenceExample),
+		BodyDifferences:   make(map[string]DifferenceExample),
+	}
+
 	// Compare status code if configured
 	if config.CompareStatusCode && !isStatusEquivalent(resp1.StatusCode, resp2.StatusCode) {
-		return errors.New(fmt.Sprintf("Status codes are different. First: %d, Second: %d", resp1.StatusCode, resp2.StatusCode))
+		diffDetail.StatusDifferences["status"] = DifferenceExample{resp1.StatusCode, resp2.StatusCode}
+		logger.Printf("Status codes are different. First: %d, Second: %d", resp1.StatusCode, resp2.StatusCode)
+		//return errors.New(fmt.Sprintf("Status codes are different. First: %d, Second: %d", resp1.StatusCode, resp2.StatusCode))
 	}
 
 	// Compare headers
@@ -76,7 +82,9 @@ func CompareResponses(resp1, resp2 *http.Response) error {
 		val1, ok1 := resp1.Header[key]
 		val2, ok2 := resp2.Header[key]
 		if ok1 != ok2 || !stringSliceEqual(val1, val2) {
-			return errors.New(fmt.Sprintf("Header '%s' values are different. First: %v, Second: %v", key, val1, val2))
+			diffDetail.HeaderDifferences[key] = DifferenceExample{val1, val2}
+			logger.Printf("Header '%s' values are different. First: %v, Second: %v", key, val1, val2)
+			//return errors.New(fmt.Sprintf("Header '%s' values are different. First: %v, Second: %v", key, val1, val2))
 		}
 	}
 
@@ -89,11 +97,13 @@ func CompareResponses(resp1, resp2 *http.Response) error {
 
 		for _, op := range patch {
 			if !contains(config.BodiesExclude, op.Path) {
-				return errors.New(fmt.Sprintf("Response bodies are different.\nFirst response: %s\nSecond response: %s", string(body1), string(body2)))
+				diffDetail.HeaderDifferences[op.Path] = DifferenceExample{op.OldValue, op.Value}
+				logger.Printf("Response bodies are different.\nFirst response: %s\nSecond response: %s", string(body1), string(body2))
+				//return errors.New(fmt.Sprintf("Response bodies are different.\nFirst response: %s\nSecond response: %s", string(body1), string(body2)))
 			}
 		}
 	}
-
+	stats.Add(diffDetail)
 	return nil
 }
 
@@ -105,7 +115,7 @@ func HandleRequestAndRedirect(proxy1, proxy2 *httputil.ReverseProxy) http.Handle
 		// Create a copy of the request body for the second proxy
 		bodyBytes, err := io.ReadAll(r.Body)
 		if err != nil {
-			log.Printf("Failed to read request body: %v", err)
+			logger.Printf("Failed to read request body: %v", err)
 			http.Error(w, "Failed to read request body", http.StatusInternalServerError)
 			return
 		}
@@ -127,12 +137,14 @@ func HandleRequestAndRedirect(proxy1, proxy2 *httputil.ReverseProxy) http.Handle
 		// Forward the request to the first proxy
 		go func() {
 			defer wg.Done()
+			proxy1.ErrorLog = logger
 			proxy1.ServeHTTP(rec1, req1)
 		}()
 
 		// Forward the request to the second proxy
 		go func() {
 			defer wg.Done()
+			proxy2.ErrorLog = logger
 			proxy2.ServeHTTP(rec2, req2)
 		}()
 
