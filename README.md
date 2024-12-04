@@ -15,7 +15,7 @@ Diff 用于充当代理，将收到的任何请求，发送到两个正在运行
 ```shell
 go build .
 
-./go-diff &
+./go-diff
 ```
 2、go-diff 默认端口为18080，将请求流量转发至go-diff，go-diff则会将请求同时转发到配置文件中的host1和host2，并对比响应体输出到日志`diff.log`
 
