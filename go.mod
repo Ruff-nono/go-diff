@@ -1,19 +1,27 @@
-module go-diff
+module gitlab.qiyi.domain/shaoshuai/go-diff
 
-go 1.21
+go 1.23.6
 
 require (
-	github.com/gizak/termui/v3 v3.1.0
-	github.com/wI2L/jsondiff v0.5.2
+	github.com/go-echarts/go-echarts/v2 v2.5.2
+	github.com/prometheus/client_golang v1.21.1
+	github.com/wI2L/jsondiff v0.6.1
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
-	github.com/mattn/go-runewidth v0.0.16 // indirect
-	github.com/mitchellh/go-wordwrap v0.0.0-20150314170334-ad45545899c7 // indirect
-	github.com/nsf/termbox-go v0.0.0-20190121233118-02980233997d // indirect
-	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/tidwall/gjson v1.17.1 // indirect
+	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/klauspost/compress v1.17.11 // indirect
+	github.com/kr/text v0.2.0 // indirect
+	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
+	github.com/prometheus/client_model v0.6.1 // indirect
+	github.com/prometheus/common v0.62.0 // indirect
+	github.com/prometheus/procfs v0.15.1 // indirect
+	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
+	golang.org/x/sys v0.28.0 // indirect
+	google.golang.org/protobuf v1.36.1 // indirect
 )

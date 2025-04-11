@@ -3,8 +3,11 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"github.com/wI2L/jsondiff"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -24,7 +27,7 @@ func NewProxy(targetHost string) *httputil.ReverseProxy {
 			Timeout:   30 * time.Second,
 			KeepAlive: 30 * time.Second,
 		}).DialContext,
-		MaxIdleConns:          500,
+		MaxIdleConns:          100,
 		MaxIdleConnsPerHost:   100,
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   3 * time.Second,
@@ -47,7 +50,6 @@ func CompareResponses(resp1, resp2 *http.Response) error {
 		body1, err = io.ReadAll(resp1.Body)
 		if err != nil {
 			logger.Printf("Error reading body from first response: %v", err)
-			//return errors.New("reading body from first error")
 		}
 	}()
 
@@ -63,47 +65,57 @@ func CompareResponses(resp1, resp2 *http.Response) error {
 
 	wg.Wait() // Wait for both goroutines to finish
 
-	stats := statsGroup.NewRouteStats("/example/route")
-	diffDetail := DifferenceDetails{
-		HeaderDifferences: make(map[string]DifferenceExample),
-		StatusDifferences: make(map[string]DifferenceExample),
-		BodyDifferences:   make(map[string]DifferenceExample),
-	}
-
 	// Compare status code if configured
-	if config.CompareStatusCode && !isStatusEquivalent(resp1.StatusCode, resp2.StatusCode) {
-		diffDetail.StatusDifferences["status"] = DifferenceExample{resp1.StatusCode, resp2.StatusCode}
-		logger.Printf("Status codes are different. First: %d, Second: %d", resp1.StatusCode, resp2.StatusCode)
-		//return errors.New(fmt.Sprintf("Status codes are different. First: %d, Second: %d", resp1.StatusCode, resp2.StatusCode))
+	if config.CompareStatusCode.Bool() && !isStatusEquivalent(resp1.StatusCode, resp2.StatusCode) {
+		return newCompareError(
+			StatusCodeMismatch,
+			fmt.Sprintf("Status codes mismatch"),
+			map[string]interface{}{
+				"status1": resp1.StatusCode,
+				"status2": resp2.StatusCode,
+			},
+		)
 	}
 
 	// Compare headers
-	for _, key := range config.HeadersInclude {
+	for _, key := range config.HeadersInclude.StringSlice() {
 		val1, ok1 := resp1.Header[key]
 		val2, ok2 := resp2.Header[key]
 		if ok1 != ok2 || !stringSliceEqual(val1, val2) {
-			diffDetail.HeaderDifferences[key] = DifferenceExample{val1, val2}
-			logger.Printf("Header '%s' values are different. First: %v, Second: %v", key, val1, val2)
-			//return errors.New(fmt.Sprintf("Header '%s' values are different. First: %v, Second: %v", key, val1, val2))
+			return newCompareError(
+				HeaderMismatch,
+				fmt.Sprintf("Header mismatch"),
+				map[string]interface{}{
+					"header":  key,
+					"values1": val1,
+					"values2": val2,
+				},
+			)
 		}
 	}
 
 	// Compare the bodies
-	if config.CompareBody && !bytes.Equal(body1, body2) {
+	if config.CompareBody.Bool() && !bytes.Equal(body1, body2) {
 		patch, err := jsondiff.CompareJSON(body1, body2, jsondiff.Equivalent())
 		if err != nil {
-			diffDetail.HeaderDifferences["error"] = DifferenceExample{}
+			return fmt.Errorf("body1: %s, body2: %s, err: %v", string(body1), string(body2), err)
 		}
 
 		for _, op := range patch {
-			if !contains(config.BodiesExclude, op.Path) {
-				diffDetail.HeaderDifferences[op.Path] = DifferenceExample{op.OldValue, op.Value}
-				logger.Printf("Response bodies are different.\nFirst response: %s\nSecond response: %s", string(body1), string(body2))
-				//return errors.New(fmt.Sprintf("Response bodies are different.\nFirst response: %s\nSecond response: %s", string(body1), string(body2)))
+			if !contains(config.BodiesExclude.StringSlice(), op.Path) {
+				return newCompareError(
+					BodyMismatch,
+					"Body content mismatch",
+					map[string]interface{}{
+						"diff_path":   op.Path,
+						"diff_type":   op.Type,
+						"body_sample": truncate(string(body1), 200),
+					},
+				)
 			}
 		}
 	}
-	stats.Add(diffDetail)
+
 	return nil
 }
 
@@ -115,20 +127,29 @@ func HandleRequestAndRedirect(proxy1, proxy2 *httputil.ReverseProxy) http.Handle
 		// Create a copy of the request body for the second proxy
 		bodyBytes, err := io.ReadAll(r.Body)
 		if err != nil {
-			logger.Printf("Failed to read request body: %v", err)
+			log.Printf("Failed to read request body: %v", err)
 			http.Error(w, "Failed to read request body", http.StatusInternalServerError)
 			return
 		}
 
-		req1 := r.Clone(context.Background())
-		req2 := r.Clone(context.Background())
+		//  Create request
+		req1, req2 := r.Clone(context.Background()), r.Clone(context.Background())
+		req1.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+		req2.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
-		req1.Body = io.NopCloser(bytes.NewBuffer(bodyBytes)) // Copy of request body for the first proxy
-		req2.Body = io.NopCloser(bytes.NewBuffer(bodyBytes)) // Copy of request body for the second proxy
+		req1.Header = make(http.Header)
+		for k, v := range r.Header {
+			req1.Header[k] = v
+		}
+		req2.Header = make(http.Header)
+		for k, v := range r.Header {
+			req2.Header[k] = v
+		}
+		req1.Header.Add("X-SOURCE-PROXY", "go-diff")
+		req2.Header.Add("X-SOURCE-PROXY", "go-diff")
 
-		// Create response recorders
-		rec1 := httptest.NewRecorder()
-		rec2 := httptest.NewRecorder()
+		// Create response
+		rec1, rec2 := httptest.NewRecorder(), httptest.NewRecorder()
 
 		// Forward the request to the two proxies concurrently using goroutines
 		var wg sync.WaitGroup
@@ -137,14 +158,12 @@ func HandleRequestAndRedirect(proxy1, proxy2 *httputil.ReverseProxy) http.Handle
 		// Forward the request to the first proxy
 		go func() {
 			defer wg.Done()
-			proxy1.ErrorLog = logger
 			proxy1.ServeHTTP(rec1, req1)
 		}()
 
 		// Forward the request to the second proxy
 		go func() {
 			defer wg.Done()
-			proxy2.ErrorLog = logger
 			proxy2.ServeHTTP(rec2, req2)
 		}()
 
@@ -152,10 +171,23 @@ func HandleRequestAndRedirect(proxy1, proxy2 *httputil.ReverseProxy) http.Handle
 
 		//Compare the responses
 		err = CompareResponses(rec1.Result(), rec2.Result())
-		if err != nil {
-			logger.Printf("[diff] Request: %s\n, Header: %v \nBody: %v \nerror: %v",
-				r.URL.RequestURI(), r.Header, string(bodyBytes), err)
+
+		errorType := "unknown"
+		errorDetails := ""
+		var ce *CompareError
+		if err == nil {
+			errorType = "ok"
+		} else if errors.As(err, &ce) {
+			errorType = ce.Type.String()
+			errorDetails = fmt.Sprintf("%s: %v", ce.Message, ce.Details)
+		} else {
+			errorType = "unknown"
+			errorDetails = err.Error()
 		}
+		reqCopy := r.Clone(context.Background())
+		reqCopy.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+		reqCopy.URL.Host = r.Host
+		recordRequest(reqCopy, errorType, errorDetails)
 
 		w.WriteHeader(rec1.Result().StatusCode)
 		_, _ = w.Write(rec1.Body.Bytes())

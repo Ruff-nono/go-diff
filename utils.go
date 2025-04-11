@@ -1,8 +1,15 @@
 package main
 
+func truncate(s string, n int) string {
+	if len(s) > n {
+		return s[:n] + "..."
+	}
+	return s
+}
+
 // Check if two status codes are equivalent
 func isStatusEquivalent(code1, code2 int) bool {
-	for _, equivalentCodes := range config.EquivalentStatusCodes {
+	for _, equivalentCodes := range config.EquivalentStatusCodes.IntSliceSlice() {
 		if contains(equivalentCodes, code1) && contains(equivalentCodes, code2) {
 			return true
 		}

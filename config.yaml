@@ -1,0 +1,11 @@
+# use environment variables first
+self_port: ${PORT::18080}
+host1: ${BACKEND_SERVICE1:http://127.0.0.1:8080}
+host2: ${BACKEND_SERVICE2:http://127.0.0.1:8081}
+path_pattern: ${PATH_PATTERN:}
+error_max_queue: ${ERROR_MAX_QUEUE:3}
+headers_include: ${HEADER_INCLUDE:}
+compare_status_code: ${ENABLE_STATUS_CHECK:true}
+equivalent_status_codes: ${STATUS_CODES:400,404;500,502}
+compare_body: ${COMPARE_BODY:true}
+bodies_exclude: ${BODY_EXCLUDE:}
