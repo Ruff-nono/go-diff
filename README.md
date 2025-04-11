@@ -1,9 +1,9 @@
+```mermaid
+flowchart LR
+    A[Client] -->|HTTP Request| B(Proxy)
+    B -->|Forward Request| D[Target Server 1]
+    B -->|Forward Request| E[Target Server 2]
 ```
-A[requests] -->|Http| B(Diff)
-B -->|Http| D[Target 1]
-B -->|Http| E[Target 2]
-```
-![img.png](img.png)
 
 # 什么是Diff工具
 Diff 用于充当代理，将收到的任何请求，发送到两个正在运行的实例。然后，它会比较响应。并比较两个响应不同的部分。
